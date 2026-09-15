@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>黃泉逃亡</title>
+<style>
+  :root{
+    --paper:#e9e2d0; --ink:#161616; --cyan:#8fd3e2; --red:#b0463a; --gold:#c9a25a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:radial-gradient(ellipse at 50% 35%,#24272b 0%,#0e1012 75%);
+    color:var(--paper);
+    font-family:"Noto Serif TC","Songti TC","LiSong Pro","PMingLiU","Microsoft JhengHei",serif;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* 遊戲容器：寬高由 JS 依視窗比例設定，字級以容器寬度為基準 */
+  #wrap{
+    position:relative;width:960px;height:540px;font-size:16px;
+    user-select:none;-webkit-user-select:none;touch-action:none;
+    box-shadow:0 24px 70px rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.06);
+  }
+  #game{display:block;width:100%;height:100%;cursor:crosshair}
+
+  /* ---------- 遊戲中 HUD ---------- */
+  #hud{
+    position:absolute;inset:0;pointer-events:none;padding:.7em 1em;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    font-size:.95em;color:var(--ink);letter-spacing:.06em;
+    text-shadow:0 0 6px rgba(233,226,208,.95),0 0 12px rgba(233,226,208,.7);
+  }
+  #hud .col{display:flex;flex-direction:column;gap:.15em}
+  #hud .col.right{align-items:flex-end}
+  #hud b{font-weight:600;font-variant-numeric:tabular-nums}
+  #hearts{display:flex;gap:.35em;align-items:center;padding-top:.15em}
+  .flame{width:1.15em;height:1.55em;transition:opacity .3s,transform .3s;filter:drop-shadow(0 0 4px rgba(143,211,226,.8))}
+  .flame.lost{opacity:.18;transform:scale(.8);filter:none}
+  #hearts.flash .flame:not(.lost){animation:flash .18s 3}
+  @keyframes flash{50%{opacity:.2}}
+  #hudNear{display:none;color:var(--red);letter-spacing:.2em;font-weight:700;margin-top:.2em}
+  #hudNear.show{display:block;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  #danger{display:flex;align-items:center;gap:.4em;font-size:.85em}
+  #dangerBar{display:inline-block;width:5.5em;height:.5em;border:1px solid rgba(22,22,22,.5);background:rgba(233,226,208,.55)}
+  #dangerFill{display:block;height:100%;width:0;background:#6c7a80;transition:width .25s,background .3s}
+  #dangerFill.mid{background:#8a5a3a}
+  #dangerFill.high{background:var(--red)}
+  #hud .btns{display:flex;gap:.35em;margin-top:.25em}
+  #hud button{
+    pointer-events:auto;font:inherit;font-size:.85em;width:2em;height:2em;border-radius:50%;
+    border:1px solid rgba(22,22,22,.45);background:rgba(233,226,208,.6);color:var(--ink);cursor:pointer;
+  }
+  #hud button:hover{background:rgba(233,226,208,.95)}
+  #hud .esc{font-size:.75em;opacity:.6;margin-top:.15em}
+
+  /* ---------- 教學提示（半透明、不擋操作、數秒後淡出） ---------- */
+  #hint{
+    position:absolute;left:50%;top:20%;transform:translateX(-50%);pointer-events:none;
+    opacity:0;transition:opacity .7s;text-align:center;color:var(--paper);
+    background:rgba(14,14,16,.42);border:1px dashed rgba(233,226,208,.35);
+    padding:.7em 1.6em;letter-spacing:.15em;font-size:1em;line-height:1.9;
+  }
+  #hint.show{opacity:1}
+  #hint .h{font-size:1.3em;letter-spacing:.35em;margin-bottom:.15em}
+  #hint span{display:inline-block;border:1px solid rgba(233,226,208,.35);padding:0 .45em;border-radius:3px;font-size:.85em;line-height:1.5}
+
+  /* ---------- 覆蓋畫面 ---------- */
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--paper)}
+  .overlay.show{display:flex}
+  .card{
+    background:rgba(14,14,16,.74);border:1px solid rgba(233,226,208,.22);padding:1.3em 2.4em;max-width:86%;
+    box-shadow:0 0 0 .35em rgba(14,14,16,.35),inset 0 0 40px rgba(0,0,0,.5);
+  }
+  .title{font-size:3.2em;letter-spacing:.22em;font-weight:700;line-height:1.1;text-shadow:0 0 18px rgba(143,211,226,.35),0 2px 0 #000}
+  .tag{margin:.5em 0 .6em;font-size:1.05em;letter-spacing:.3em;opacity:.85}
+  .lore{font-size:.9em;letter-spacing:.12em;opacity:.7;margin-bottom:.9em}
+  .sub{font-size:.9em;letter-spacing:.15em;opacity:.75;margin-bottom:.4em}
+  .ctl{font-size:.88em;line-height:2;opacity:.85;margin-bottom:1em}
+  .ctl span{display:inline-block;border:1px solid rgba(233,226,208,.35);padding:0 .45em;margin:0 .1em;border-radius:3px;font-size:.9em;line-height:1.5}
+  .btn{
+    font:inherit;font-size:1.05em;letter-spacing:.25em;padding:.55em 1.8em;background:var(--paper);color:var(--ink);
+    border:none;cursor:pointer;box-shadow:0 0 0 2px var(--ink),0 0 0 4px var(--paper);transition:transform .1s;margin:.15em .35em;
+  }
+  .btn:hover{transform:translateY(-2px)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:transparent;color:var(--paper);box-shadow:0 0 0 1px rgba(233,226,208,.4);opacity:.55;cursor:default;font-size:.85em}
+  .btn.ghost:hover{transform:none}
+  .mini{font:inherit;font-size:.8em;letter-spacing:.12em;padding:.25em .8em;margin-top:.6em;background:transparent;color:var(--paper);border:1px solid rgba(233,226,208,.4);cursor:pointer}
+  .mini:hover{background:rgba(233,226,208,.12)}
+  .small{font-size:.8em;opacity:.65;margin-top:.7em;letter-spacing:.1em}
+  .records{font-size:.85em;opacity:.8;margin-top:.9em;letter-spacing:.08em;line-height:1.8}
+  .records b{color:var(--cyan);font-variant-numeric:tabular-nums}
+  .stats{display:grid;grid-template-columns:auto auto;gap:.2em 1.4em;text-align:left;margin:.5em auto .9em;font-size:.95em;width:max-content}
+  .stats b{font-variant-numeric:tabular-nums;text-align:right;color:var(--cyan)}
+  .record{color:var(--red);font-weight:700;letter-spacing:.2em;margin-bottom:.3em;min-height:1.4em;font-size:.95em}
+  /* 通關畫面：紙面泛白、暖金 */
+  .card.warm{background:rgba(246,240,226,.9);color:#2a2622;border-color:rgba(60,50,40,.35);box-shadow:0 0 0 .35em rgba(246,240,226,.4),0 0 60px rgba(255,230,170,.55)}
+  .card.warm .title{text-shadow:0 0 24px rgba(201,162,90,.55),0 1px 0 rgba(255,255,255,.6)}
+  .card.warm .stats b,.card.warm .records b{color:#8a5a2a}
+  .card.warm .record{color:#a8452f}
+  .card.warm .btn{background:#2a2622;color:var(--paper);box-shadow:0 0 0 2px var(--paper),0 0 0 4px #2a2622}
+  .card.warm .btn.ghost{background:transparent;color:#2a2622;box-shadow:0 0 0 1px rgba(42,38,34,.4)}
+  .card.warm .small{opacity:.6}
+  #screenPause .title{font-size:2.2em}
+  #screenOver .title{font-size:2.6em}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <div id="hud">
+    <div class="col">
+      <div>分數 <b id="hudScore">0</b></div>
+      <div>黃泉路 <b id="hudDist">0</b> / 1,000 m</div>
+      <div id="hearts"></div>
+      <div id="hudNear">返陽門將近</div>
+    </div>
+    <div class="col right">
+      <div>最高分 <b id="hudBest">0</b>　最速 <b id="hudBestTime">--</b></div>
+      <div>時間 <b id="hudTime">0.0</b> s</div>
+      <div id="danger"><span>無常</span><span id="dangerBar"><span id="dangerFill"></span></span><span id="dangerText">遠</span></div>
+      <div class="btns">
+        <button id="btnMute" title="靜音">♪</button>
+        <button id="btnPause" title="暫停 (Esc)">❚❚</button>
+      </div>
+      <div class="esc">Esc 暫停</div>
+    </div>
+  </div>
+
+  <div id="hint">
+    <div class="h">逃回陽間</div>
+    <span>左鍵</span>／<span>空白鍵</span>：跳躍　　<span>右鍵</span>／<span>S</span>／<span>↓</span>：下鏟<br>
+    避開障礙，別讓黑白無常追上。
+  </div>
+
+  <div id="screenStart" class="overlay show">
+    <div class="card">
+      <div class="title">黃泉逃亡</div>
+      <div class="tag">命不該絕，便莫回頭。</div>
+      <div class="lore">黑白在後，陽門在前。逃過黃泉一千公尺，重返人間。</div>
+      <div class="ctl">
+        <span>左鍵</span>／<span>空白鍵</span>／<span>W</span>／<span>↑</span> 跳躍　　<span>右鍵</span>／<span>S</span>／<span>↓</span> 下鏟<br>
+        <span>Esc</span> 暫停　　<span>R</span> 結束後重來　　手機：畫面左半跳、右半鏟
+      </div>
+      <button class="btn" id="btnStart">開始逃亡</button>
+      <div class="records">最高分 <b id="startBest">0</b>　　最佳通關 <b id="startBestTime">--</b>　　累積通關 <b id="startClears">0</b> 次</div>
+      <button class="mini" id="btnMuteStart">♪ 音效開啟</button>
+    </div>
+  </div>
+
+  <div id="screenPause" class="overlay">
+    <div class="card">
+      <div class="title">黃泉暫歇</div>
+      <div class="tag">黑白無常尚在身後，莫要久留。</div>
+      <button class="btn" id="btnResume">繼續逃亡</button>
+      <div class="small">Esc 繼續</div>
+    </div>
+  </div>
+
+  <div id="screenOver" class="overlay">
+    <div class="card">
+      <div class="title">魂歸黃泉</div>
+      <div class="sub" id="overCause">魂力耗盡</div>
+      <div class="tag">回頭之時，已無來路。</div>
+      <div class="record" id="overRecord"></div>
+      <div class="stats">
+        <span>逃亡距離</span><b id="overDist">0 m</b>
+        <span>本局分數</span><b id="overScore">0</b>
+        <span>存活時間</span><b id="overTime">0.0 s</b>
+        <span>閃避障礙</span><b id="overDodge">0</b>
+        <span>最高連擊</span><b id="overCombo">0</b>
+        <span>歷史最高分</span><b id="overBest">0</b>
+      </div>
+      <button class="btn" id="btnRetry">再逃一次</button>
+      <div class="small">按 R 重新開始</div>
+    </div>
+  </div>
+
+  <div id="screenVictory" class="overlay">
+    <div class="card warm">
+      <div class="title">重返陽間</div>
+      <div class="tag">黃泉路盡，魂歸陽世。</div>
+      <div class="record" id="winRecord"></div>
+      <div class="stats">
+        <span>通關時間</span><b id="winTime">0.0 s</b>
+        <span>通關分數</span><b id="winScore">0</b>
+        <span>剩餘魂力</span><b id="winHealth">0</b>
+        <span>閃避障礙</span><b id="winDodge">0</b>
+        <span>最高連擊</span><b id="winCombo">0</b>
+        <span>累積通關</span><b id="winClears">0 次</b>
+      </div>
+      <button class="btn" id="btnRetryWin">再逃一次</button>
+      <button class="btn ghost" id="btnEndless" disabled>挑戰無盡黃泉（即將開放）</button>
+      <div class="small">按 R 重新開始</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ==========================================================================
+ * 1. 遊戲設定與可調整常數   【可調參數】所有平衡數值集中於 CONFIG
+ * ========================================================================== */
+const W = 960, H = 540;
+const GROUND_Y = 452;          // 黃泉路路面 y
+const PLAYER_X = 220;          // 主角固定 x
+const SPAWN_X  = W + 60;       // 障礙生成點：畫面外右側，距主角 800px，最高速下也有 ≥1.25 秒反應時間
+
+const CONFIG = {
+  /* 關卡 */
+  levelDistance: 1000,             // 第一關總距離（公尺）
+  pxPerMeter: 55,                  // 每公尺換算像素；調大 = 單局變長，調小 = 變短
+  // 奔跑速度依「已逃亡公尺數」插值（px/s），不隨時間無限上升；預估全程約 110～130 秒
+  speedCurve: [[0, 330], [200, 400], [550, 520], [850, 620], [1000, 640]],
+  initialSpeed: 330, maxSpeed: 640, // 速度保險上下限
+  /* 玩家 */
+  playerMaxHealth: 3,              // 魂力格數
+  jumpVelocity: 830,               // 起跳初速（跳高約 150px、滯空約 0.72 秒）
+  gravity: 2300,
+  fastFallMult: 2.2,               // 空中按住下鏟時的加速下落倍率
+  slideMinTime: 0.35,              // 下鏟最短持續秒數，按住則延長
+  jumpBufferTime: 0.12,            // 落地前預先按跳的緩衝秒數
+  invulnerableDuration: 1.3,       // 撞擊後無敵秒數
+  hitSlowFactor: 0.5, hitSlowRecover: 1.2, hitStopTime: 0.16, hitStopScale: 0.12,
+  /* 黑白無常（與主角的距離，單位 px；越小越危險） */
+  wuchangInitialDistance: 180,
+  wuchangHitAdvance: 55,           // 每次撞擊逼近的距離
+  wuchangDodgeRetreat: 8,          // 每次成功閃避可拉開的距離
+  wuchangCatchDistance: 45,        // 距離小於此值即被追上
+  pursuerLerp: 3,                  // 視覺位置追近／拉遠的平滑速度
+  /* 障礙生成 */
+  firstSpawnDelay: 2.2,            // 開局後第一個障礙延遲秒數
+  obstacleWeights: { rock: 1, root: 1, ghost: 1 },   // 單一障礙的生成機率權重
+  // 難度階段依公尺數切換：minGap/maxGap = 障礙組之間的秒數間隔；set = 可用障礙組合；creep = 無常每秒自然逼近 px
+  phases: [
+    { name: '初入黃泉', until: 200,      minGap: 1.7,  maxGap: 2.3, set: 'single', creep: 0   },
+    { name: '迷霧追趕', until: 550,      minGap: 1.25, maxGap: 1.8, set: 'easy',   creep: 1.5 },
+    { name: '黃泉急行', until: 850,      minGap: 0.95, maxGap: 1.4, set: 'hard',   creep: 3   },
+    { name: '返陽衝刺', until: 950,      minGap: 1.0,  maxGap: 1.4, set: 'easy',   creep: 6   },
+    { name: '返陽衝刺', until: Infinity, minGap: 1.3,  maxGap: 1.8, set: 'single', creep: 6   },   // 950m 後只出單一障礙
+  ],
+  /* 終點 */
+  gateVisibleDistance: 850,        // 遠方開始看見返陽門暖光
+  finishApproachDistance: 1000,    // 停止生成障礙、返陽門進場
+  victorySequenceDuration: 4.5,    // 通關演出秒數
+  /* 分數 */
+  score: { perMeter: 2, dodge: 30, comboStep: 2, comboCap: 15, clear: 1000, health: 200, maxCombo: 20, timeCost: 5 },
+  /* 其他 */
+  tutorialHintTime: 4.5,           // 開局教學提示顯示秒數
+  maxParticles: 400,
+  sfxVolume: 0.22,
+  idleSpeedMult: 0.3,              // 開始畫面背景捲動速度倍率
+};
+
+// 障礙物定義：root 由畫面頂端垂到 bottom；ghost 的 lift 為離地高度
+const OBSTACLES = {
+  rock:      { kind: 'rock',  w: 46, h: 44 },
+  rockWide:  { kind: 'rock',  w: 88, h: 44 },
+  root:      { kind: 'root',  w: 44, bottom: 400 },
+  ghostLow:  { kind: 'ghost', w: 52, h: 56, lift: 0 },    // 需跳
+  ghostMid:  { kind: 'ghost', w: 52, h: 60, lift: 52 },   // 需下鏟
+  ghostHigh: { kind: 'ghost', w: 52, h: 60, lift: 150 },  // 不可跳，維持奔跑
+};
+// 【碰撞箱可調參數】主角站立／下鏟碰撞箱（皆比外觀略小以求寬容）
+const HB_STAND = { w: 40, h: 66 };
+const HB_DUCK  = { w: 44, h: 34 };
+
+// 障礙組合：t = 相對第一個障礙的到達時間差（秒）
+const P = (w, ...items) => ({ w, items });
+const SINGLES = [
+  P(4, { t: 0, type: 'rock' }),
+  P(3, { t: 0, type: 'root' }),
+  P(2, { t: 0, type: 'ghostLow' }),
+  P(2, { t: 0, type: 'ghostMid' }),
+  P(2, { t: 0, type: 'ghostHigh' }),
+];
+const DOUBLES = [
+  P(2, { t: 0, type: 'rockWide' }),
+  P(2, { t: 0, type: 'rock' },      { t: 0.85, type: 'root' }),
+  P(2, { t: 0, type: 'root' },      { t: 0.8,  type: 'rock' }),
+  P(2, { t: 0, type: 'root' },      { t: 0.5,  type: 'root' }),
+  P(1, { t: 0, type: 'rock' },      { t: 0.9,  type: 'ghostHigh' }),
+  P(1, { t: 0, type: 'ghostMid' },  { t: 0.85, type: 'rock' }),
+  P(1, { t: 0, type: 'ghostHigh' }, { t: 0.65, type: 'root' }),
+];
+const TRIPLES = [
+  P(2, { t: 0, type: 'rock' },     { t: 0.8,  type: 'root' },      { t: 1.6,  type: 'rock' }),
+  P(2, { t: 0, type: 'root' },     { t: 0.5,  type: 'root' },      { t: 1.3,  type: 'ghostLow' }),
+  P(1, { t: 0, type: 'rock' },     { t: 0.9,  type: 'ghostHigh' }, { t: 1.55, type: 'root' }),
+  P(1, { t: 0, type: 'root' },     { t: 0.8,  type: 'rock' },      { t: 1.75, type: 'rockWide' }),
+  P(1, { t: 0, type: 'ghostLow' }, { t: 0.95, type: 'rock' },      { t: 1.9,  type: 'root' }),
+];
+const scaled = (list, k) => list.map(p => ({ w: p.w * k, items: p.items }));
+const PATTERN_SETS = {
+  single: SINGLES,
+  easy:   [...scaled(SINGLES, 0.6),  ...DOUBLES],
+  hard:   [...scaled(SINGLES, 0.35), ...DOUBLES, ...TRIPLES],
+};
+
+const FONT = '"Noto Serif TC","Songti TC","PMingLiU","Microsoft JhengHei",serif';
+const TAU = Math.PI * 2;
+const rand  = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp  = (a, b, t) => a + (b - a) * t;
+const $     = id => document.getElementById(id);
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function mixRGB(a, b, t) { return `${Math.round(lerp(a[0], b[0], t))},${Math.round(lerp(a[1], b[1], t))},${Math.round(lerp(a[2], b[2], t))}`; }
+
+/* ==========================================================================
+ * 2. Canvas 初始化與尺寸處理
+ * ========================================================================== */
+const wrap = $('wrap'), canvas = $('game'), ctx = canvas.getContext('2d');
+function fitCanvas() {   // 基本 RWD：容器維持 16:9，字級隨容器縮放；畫布依 DPR 提升解析度
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const w = Math.max(320, Math.min(vw - 24, (vh - 24) * 16 / 9));
+  wrap.style.width = w + 'px'; wrap.style.height = (w * 9 / 16) + 'px'; wrap.style.fontSize = (w / 60) + 'px';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+/* ==========================================================================
+ * 3. localStorage 成績與音效設定   【localStorage 紀錄】
+ * ========================================================================== */
+const KEY_BEST = 'hq_best_v2', KEY_BEST_TIME = 'hq_best_time_v2', KEY_BEST_DODGE = 'hq_best_dodge_v2',
+      KEY_CLEARS = 'hq_clears_v2', KEY_MUTE = 'hq_muted_v1';
+const Store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+const rec = {
+  best:       Store.get(KEY_BEST, 0) | 0,
+  bestTime:   Store.get(KEY_BEST_TIME, null),      // 秒；null = 尚未通關
+  bestDodges: Store.get(KEY_BEST_DODGE, 0) | 0,
+  clears:     Store.get(KEY_CLEARS, 0) | 0,
+};
+function saveRecords() {
+  Store.set(KEY_BEST, rec.best); Store.set(KEY_BEST_TIME, rec.bestTime);
+  Store.set(KEY_BEST_DODGE, rec.bestDodges); Store.set(KEY_CLEARS, rec.clears);
+}
+const fmtTime = t => t == null ? '--' : t.toFixed(1) + ' s';
+
+/* ==========================================================================
+ * 4. 資產路徑、圖片載入與 placeholder 機制
+ *    【替換素材】把 AI 生圖去背後的透明 PNG 放到下列路徑即可；載入失敗會自動退回程式繪製。
+ *    若改用 sprite sheet，在 drawPlayer / drawObstacle / drawWuchang 的 IMG 分支中
+ *    以 drawImage 九參數版本依 animT 切幀即可。
+ * ========================================================================== */
+const ASSETS = {
+  player:       'assets/player.png',
+  blackWuchang: 'assets/black-wuchang.png',
+  whiteWuchang: 'assets/white-wuchang.png',
+  rock:         'assets/rock.png',
+  hangingRoot:  'assets/hanging-root.png',
+  ghost:        'assets/ghost.png',
+  soulFlame:    'assets/soul-flame.png',   // 預留：收集物（第一版未使用）
+};
+const IMG = {};   // 只有成功載入的圖片會放進來；缺圖時繪製函式自動使用 placeholder
+function loadAssets() {
+  for (const [key, src] of Object.entries(ASSETS)) {
+    const im = new Image();
+    im.onload  = () => { if (im.naturalWidth > 0) IMG[key] = im; };
+    im.onerror = () => {};   // 【placeholder】圖片不存在或載入失敗：保持程序化繪製，不報錯
+    im.src = src;
+  }
+}
+
+/* ==========================================================================
+ * 5. 程序化背景：宣紙紋理、墨暈、山巒、枯樹、迷霧、道路、視差層   【程序化背景】
+ * ========================================================================== */
+const BG = {};
+const S = { far: 0, mid: 0, fog1: 0, trees: 0, fog2: 0, road: 0, fore: 0 };   // 各層捲動量
+const fires = [], ashes = [];
+
+function makePaperTexture(w, h) {   // 【宣紙紙紋】初始化一次，之後每幀重複貼上，不重新產生像素
+  const c = makeCanvas(w, h), g = c.getContext('2d');
+  const img = g.createImageData(w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = 190 + Math.random() * 65;
+    d[i] = v; d[i + 1] = v - 6; d[i + 2] = v - 18;
+    d[i + 3] = Math.random() < 0.5 ? 0 : Math.random() * 46;
+  }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = 'rgba(110,95,70,0.10)'; g.lineWidth = 1;     // 紙纖維
+  for (let i = 0; i < 220; i++) {
+    const x = rand(0, w), y = rand(0, h), l = rand(8, 40), a = rand(0, TAU);
+    g.beginPath(); g.moveTo(x, y);
+    g.quadraticCurveTo(x + Math.cos(a + 0.5) * l * 0.5, y + Math.sin(a + 0.5) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  return c;
+}
+function makeStains(w, h) {   // 淡墨暈染
+  const c = makeCanvas(w, h), g = c.getContext('2d');
+  for (let i = 0; i < 6; i++) {
+    const x = rand(0, w), y = rand(0, h * 0.6), r = rand(120, 260);
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(50,50,48,0.07)'); grad.addColorStop(0.6, 'rgba(50,50,48,0.03)'); grad.addColorStop(1, 'rgba(50,50,48,0)');
+    g.fillStyle = grad; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  return c;
+}
+function makeMountainTile(tw, th, o) {   // 週期函數疊加的山脊，左右可無縫接續
+  const c = makeCanvas(tw, th), g = c.getContext('2d');
+  const fr = [1, 2, 3, 5, 8, 13, 21], ph = fr.map(() => Math.random() * TAU), am = [1, 0.55, 0.35, 0.22, 0.12, 0.06, 0.03];
+  const ridge = x => { let v = 0; for (let i = 0; i < fr.length; i++) v += am[i] * Math.sin(TAU * fr[i] * x / tw + ph[i]); return o.base + v * o.amp; };
+  g.beginPath(); g.moveTo(0, th);
+  for (let x = 0; x <= tw; x += 2) g.lineTo(x, ridge(x));
+  g.lineTo(tw, th); g.closePath();
+  const grad = g.createLinearGradient(0, o.base - o.amp * 1.5, 0, th);
+  grad.addColorStop(0, o.top); grad.addColorStop(1, o.bottom);
+  g.fillStyle = grad; g.fill();
+  g.strokeStyle = o.ridge; g.lineWidth = 1.2;      // 皴法筆觸
+  for (let x = 0; x < tw; x += 14) {
+    const y = ridge(x); g.globalAlpha = rand(0.25, 0.7);
+    g.beginPath(); g.moveTo(x, y + 2); g.lineTo(x + rand(-8, 8), y + rand(14, 40)); g.stroke();
+  }
+  g.globalAlpha = 1; g.lineWidth = 2; g.beginPath();
+  for (let x = 0; x <= tw; x += 3) { const y = ridge(x); x ? g.lineTo(x, y) : g.moveTo(x, y); }
+  g.stroke();
+  return c;
+}
+function drawInkTree(g, x, y, len, ang, depth, width, alpha) {
+  const ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
+  g.strokeStyle = `rgba(30,32,30,${alpha})`; g.lineWidth = width;
+  g.beginPath(); g.moveTo(x, y); g.lineTo(ex, ey); g.stroke();
+  if (depth <= 0) return;
+  const n = depth > 2 ? 2 : (Math.random() < 0.7 ? 2 : 1);
+  for (let i = 0; i < n; i++) {
+    const a = ang + (i ? 1 : -1) * rand(0.25, 0.75) + rand(-0.1, 0.1);
+    drawInkTree(g, ex, ey, len * rand(0.58, 0.75), a, depth - 1, width * 0.62, alpha * 0.9);
+  }
+}
+function drawSpiderLily(g, x, y, h) {   // 彼岸花：少量朱紅點綴
+  g.strokeStyle = 'rgba(60,70,60,0.6)'; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 3, y - h * 0.6, x, y - h); g.stroke();
+  g.strokeStyle = 'rgba(176,70,58,0.75)'; g.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI / 2 + (i - 3) * 0.32, r = h * 0.5;
+    g.beginPath(); g.moveTo(x, y - h);
+    g.quadraticCurveTo(x + Math.cos(a) * r * 0.7, y - h + Math.sin(a) * r * 0.7 - 3, x + Math.cos(a) * r, y - h + Math.sin(a) * r - 6);
+    g.stroke();
+  }
+  g.fillStyle = 'rgba(176,70,58,0.8)'; g.beginPath(); g.arc(x, y - h, 1.8, 0, TAU); g.fill();
+}
+function makeTreesTile(tw, th) {
+  const c = makeCanvas(tw, th), g = c.getContext('2d'); g.lineCap = 'round';
+  const count = 6;
+  for (let i = 0; i < count; i++) {
+    const x = (i + 0.5) / count * tw + rand(-50, 50), len = rand(45, 75);
+    for (const off of [-tw, 0, tw]) drawInkTree(g, x + off, th, len, -Math.PI / 2 + rand(-0.15, 0.15), 4, len * 0.16, rand(0.35, 0.6));
+  }
+  for (let i = 0; i < 9; i++) { const x = rand(0, tw), h = rand(18, 30); for (const off of [-tw, 0, tw]) drawSpiderLily(g, x + off, th, h); }
+  for (let i = 0; i < 3; i++) {   // 遠處石碑剪影
+    const x = rand(0, tw), w = rand(10, 16), h = rand(26, 40);
+    g.fillStyle = 'rgba(40,42,40,0.45)';
+    for (const off of [-tw, 0, tw]) { g.beginPath(); g.moveTo(x + off, th); g.lineTo(x + off, th - h); g.quadraticCurveTo(x + off + w / 2, th - h - 6, x + off + w, th - h); g.lineTo(x + off + w, th); g.closePath(); g.fill(); }
+  }
+  const grad = g.createLinearGradient(0, th - 60, 0, th);
+  grad.addColorStop(0, 'rgba(226,222,210,0)'); grad.addColorStop(1, 'rgba(226,222,210,0.55)');
+  g.fillStyle = grad; g.fillRect(0, th - 60, tw, 60);
+  return c;
+}
+function makeFogTile(tw, th, n, rgb, maxA) {   // 【迷霧】每團霧同時畫在 x、x±tw，確保無縫
+  const c = makeCanvas(tw, th), g = c.getContext('2d');
+  for (let i = 0; i < n; i++) {
+    const cx = rand(0, tw), cy = rand(th * 0.25, th * 0.85), rx = rand(120, 260), ry = rand(30, 70), a = rand(0.4, 1) * maxA;
+    for (const off of [-tw, 0, tw]) {
+      g.save(); g.translate(cx + off, cy); g.scale(rx / ry, 1);
+      const grad = g.createRadialGradient(0, 0, 0, 0, 0, ry);
+      grad.addColorStop(0, `rgba(${rgb},${a})`); grad.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = grad; g.fillRect(-ry, -ry, ry * 2, ry * 2); g.restore();
+    }
+  }
+  return c;
+}
+function makeRoadTile(tw, th) {
+  const c = makeCanvas(tw, th), g = c.getContext('2d');
+  let grad = g.createLinearGradient(0, 0, 0, th);
+  grad.addColorStop(0, '#3b3a36'); grad.addColorStop(1, '#1b1a18');
+  g.fillStyle = grad; g.fillRect(0, 0, tw, th);
+  for (let i = 0; i < 70; i++) {     // 碎石
+    const x = rand(0, tw), y = rand(10, th - 4), rx = rand(3, 12), ry = rand(1.5, 4), a = rand(0.06, 0.22);
+    g.fillStyle = Math.random() < 0.6 ? `rgba(150,145,130,${a})` : `rgba(0,0,0,${a})`;
+    for (const off of [-tw, 0, tw]) { g.beginPath(); g.ellipse(x + off, y, rx, ry, 0, 0, TAU); g.fill(); }
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1.5;   // 道路裂痕
+  for (let i = 0; i < 6; i++) {
+    const x = rand(0, tw), y = rand(14, th - 10);
+    for (const off of [-tw, 0, tw]) { g.beginPath(); g.moveTo(x + off, y); g.lineTo(x + off + rand(8, 20), y + rand(-6, 6)); g.lineTo(x + off + rand(24, 40), y + rand(-4, 8)); g.stroke(); }
+  }
+  g.fillStyle = '#6a675e'; g.fillRect(0, 0, tw, 6);     // 路緣亮邊
+  g.strokeStyle = 'rgba(20,20,20,0.85)'; g.lineWidth = 2.2; g.beginPath();
+  for (let x = 0; x <= tw; x += 4) { const y = 6 + Math.sin(TAU * 7 * x / tw) * 1.2 + Math.sin(TAU * 19 * x / tw) * 0.6; x ? g.lineTo(x, y) : g.moveTo(x, y); }
+  g.stroke();
+  return c;
+}
+function makeVignette(w, h, inner, alpha) {
+  const c = makeCanvas(w, h), g = c.getContext('2d');
+  const grad = g.createRadialGradient(w / 2, h * 0.45, h * inner, w / 2, h * 0.45, w * 0.75);
+  grad.addColorStop(0, 'rgba(15,14,12,0)'); grad.addColorStop(1, `rgba(15,14,12,${alpha})`);
+  g.fillStyle = grad; g.fillRect(0, 0, w, h);
+  return c;
+}
+function buildBackground() {
+  BG.paper    = makePaperTexture(W, H);
+  BG.stains   = makeStains(W, H);
+  BG.far      = makeMountainTile(1440, 260, { base: 110, amp: 55, top: 'rgba(96,108,112,0.42)', bottom: 'rgba(96,108,112,0)', ridge: 'rgba(70,80,84,0.35)' });
+  BG.mid      = makeMountainTile(1200, 300, { base: 190, amp: 60, top: 'rgba(58,66,68,0.62)',  bottom: 'rgba(58,66,68,0)',  ridge: 'rgba(35,40,42,0.5)'  });
+  BG.trees    = makeTreesTile(1280, 220);
+  BG.fog1     = makeFogTile(1024, 220, 18, '236,232,220', 0.28);
+  BG.fog2     = makeFogTile(1280, 160, 14, '225,228,226', 0.22);
+  BG.fore     = makeFogTile(1400, 120, 8,  '230,226,214', 0.18);
+  BG.road     = makeRoadTile(480, H - (GROUND_Y - 6));
+  BG.vignette = makeVignette(W, H, 0.35, 0.55);
+  BG.danger   = makeVignette(W, H, 0.2, 0.9);   // 黑白無常逼近時疊加的邊緣暗角
+}
+function initAmbient() {
+  for (let i = 0; i < 7; i++)  fires.push({ x: rand(0, W), y: rand(GROUND_Y - 260, GROUND_Y - 40), r: rand(5, 9), ph: rand(0, TAU), sp: rand(0.35, 0.6) });
+  for (let i = 0; i < 28; i++) ashes.push({ x: rand(0, W), y: rand(0, H), s: rand(1, 2.6), ph: rand(0, TAU), sp: rand(0.7, 1.1), vy: rand(-14, -4) });
+}
+function advanceScroll(dx, dt) {   // 【視差捲動】遠景慢、前景快；霧氣即使速度為 0 也持續流動
+  S.far  += dx * 0.08;  S.mid  += dx * 0.18;
+  S.fog1 += dx * 0.22 + dt * 7;   S.trees += dx * 0.42;
+  S.fog2 += dx * 0.55 + dt * 11;  S.road  += dx;
+  S.fore += dx * 1.15 + dt * 16;
+  for (const f of fires) { f.x -= dx * f.sp + dt * 6; f.y += Math.sin(animT * 1.3 + f.ph) * dt * 10; if (f.x < -30) { f.x = W + 30; f.y = rand(GROUND_Y - 260, GROUND_Y - 40); } }
+  for (const a of ashes) { a.x -= dx * a.sp + dt * 12; a.y += a.vy * dt + Math.sin(animT * 2 + a.ph) * dt * 8; if (a.x < -10) { a.x = W + 10; a.y = rand(0, H); } if (a.y < -10) a.y = H + 10; }
+}
+function drawTile(img, scroll, y, alpha) {
+  const tw = img.width; let x = -(scroll % tw); if (x > 0) x -= tw;
+  if (alpha != null) ctx.globalAlpha = alpha;
+  for (; x < W; x += tw) ctx.drawImage(img, x, y);
+  if (alpha != null) ctx.globalAlpha = 1;
+}
+function drawFires(alpha) {
+  for (const f of fires) {
+    const a = (0.55 + Math.sin(animT * 5 + f.ph) * 0.25) * alpha, r = f.r * (1 + Math.sin(animT * 3 + f.ph) * 0.15);
+    const g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, r * 4.5);
+    g.addColorStop(0, `rgba(140,205,235,${a * 0.55})`); g.addColorStop(1, 'rgba(140,205,235,0)');
+    ctx.fillStyle = g; ctx.fillRect(f.x - r * 5, f.y - r * 5, r * 10, r * 10);
+    ctx.fillStyle = `rgba(215,245,255,${a})`; ctx.beginPath(); ctx.ellipse(f.x, f.y, r * 0.8, r * 1.25, 0, 0, TAU); ctx.fill();
+  }
+}
+function drawAshes() {
+  ctx.fillStyle = 'rgba(80,78,70,0.35)';
+  for (const a of ashes) { ctx.beginPath(); ctx.ellipse(a.x, a.y, a.s, a.s * 0.6, a.ph, 0, TAU); ctx.fill(); }
+}
+
+/* ==========================================================================
+ * 6. 玩家物件與動作邏輯   【跳躍／下鏟控制】
+ * ========================================================================== */
+const player = {
+  x: PLAYER_X, y: GROUND_Y, vy: 0, onGround: true,
+  ducking: false, duckTimer: 0, duckHeld: false,
+  jumpBuffer: 0, invincible: 0,
+};
+function resetPlayer() {
+  player.x = PLAYER_X; player.y = GROUND_Y; player.vy = 0; player.onGround = true;
+  player.ducking = false; player.duckTimer = 0; player.duckHeld = false;
+  player.jumpBuffer = 0; player.invincible = 0;
+}
+function playerHitbox() {   // 碰撞箱依站立／下鏟切換（跳躍時沿用站立箱，隨 y 上移）
+  const b = player.ducking ? HB_DUCK : HB_STAND;
+  return { x: player.x - b.w / 2, y: player.y - b.h, w: b.w, h: b.h };
+}
+function doJump() {   // 落地後才能再次起跳，無二段跳
+  player.vy = -CONFIG.jumpVelocity; player.onGround = false;
+  player.ducking = false; player.jumpBuffer = 0;
+  world.didJump = true;
+  spawnParticles(player.x, player.y, 4, DUST);
+  Sfx.jump();
+}
+function startDuck() {
+  if (player.ducking) return;
+  player.ducking = true; player.duckTimer = CONFIG.slideMinTime;
+  world.didDuck = true;
+  spawnParticles(player.x + 10, player.y, 5, DUST);
+  Sfx.duck();
+}
+function updatePlayer(dt) {
+  const p = player;
+  if (p.jumpBuffer > 0) p.jumpBuffer -= dt;
+  if (p.invincible > 0) p.invincible -= dt;
+  if (!p.onGround) {
+    const g = CONFIG.gravity * ((p.duckHeld && p.vy > 0) ? CONFIG.fastFallMult : 1);   // 空中按住下鏟：加速下落
+    p.vy += g * dt;
+    p.y += p.vy * dt;
+    if (p.y >= GROUND_Y) {
+      p.y = GROUND_Y; p.vy = 0; p.onGround = true;
+      spawnParticles(p.x, p.y, 3, DUST);
+      if (p.duckHeld) startDuck();
+      else if (p.jumpBuffer > 0) doJump();
+    }
+  } else if (p.ducking) {
+    p.duckTimer -= dt;
+    if (p.duckTimer <= 0 && !p.duckHeld) p.ducking = false;   // 放開後自然回到奔跑姿勢
+  }
+}
+
+/* ==========================================================================
+ * 7. 黑白無常追逐與距離邏輯
+ *    world.pursuit = 無常與主角的距離（px）。撞擊逼近、閃避拉開、依階段緩慢逼近；小於 catch 距離即失敗。
+ * ========================================================================== */
+function dangerRatio() {
+  return clamp((CONFIG.wuchangInitialDistance - world.pursuit) / (CONFIG.wuchangInitialDistance - CONFIG.wuchangCatchDistance), 0, 1);
+}
+function updatePursuers(dt) {
+  if (isRunning()) {
+    if (state === 'finishApproach') {
+      world.pursuit = Math.min(500, world.pursuit + dt * 140);                  // 返陽光線阻擋，黑白無常退後淡出
+      world.wuchangAlpha = Math.max(0, world.wuchangAlpha - dt * 0.6);
+    } else {
+      world.pursuit -= (CONFIG.phases[world.phaseIdx].creep || 0) * dt;
+      if (world.pursuit <= CONFIG.wuchangCatchDistance) { gameOver('caught'); }
+    }
+  }
+  let target = player.x - world.pursuit;
+  if (state === 'gameover') target = player.x - 30;
+  else if (state === 'start' || state === 'victory') target = PLAYER_X - CONFIG.wuchangInitialDistance;
+  world.pursuerX += (target - world.pursuerX) * Math.min(1, CONFIG.pursuerLerp * dt);
+  // 逼近時的低頻提示音
+  if (isRunning() && state !== 'finishApproach' && dangerRatio() > 0.55) {
+    world.droneT -= dt;
+    if (world.droneT <= 0) { world.droneT = 1.1; Sfx.drone(); }
+  }
+}
+
+/* ==========================================================================
+ * 8. 障礙物
+ * ========================================================================== */
+function makeRockShape(w, h) {
+  const lumps = []; const n = w > 60 ? 3 : 2;
+  for (let i = 0; i < n; i++) {
+    const rx = w / n * 0.62 + rand(0, 5), ry = h * rand(0.42, 0.5);
+    const cx = (i + 0.5) / n * w + rand(-3, 3), cy = h - ry + rand(0, 3);
+    const pts = []; const k = 9;
+    for (let j = 0; j < k; j++) pts.push([j / k * TAU, 0.78 + Math.random() * 0.32]);
+    lumps.push({ cx, cy, rx, ry, pts });
+  }
+  return lumps;
+}
+function makeRootShape(w, bottom) {
+  const segs = []; const n = 14; const cx = w / 2;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    segs.push({ x: cx + Math.sin(t * 5 + 0.7) * w * 0.14 + (Math.random() - 0.5) * 3, y: t * bottom, lw: 26 * (1 - t) + 7 });
+  }
+  const tendrils = [];
+  for (let i = 0; i < 3; i++) tendrils.push({ at: rand(0.3, 0.75), dir: i % 2 ? 1 : -1, len: rand(28, 50), sw: rand(0.5, 1.2) });
+  return { segs, tendrils, phase: Math.random() * TAU };
+}
+function makeObstacle(type, x) {
+  const def = OBSTACLES[type];
+  const ob = { type, kind: def.kind, x, w: def.w, passed: false, hit: false, fade: null, phase: Math.random() * TAU };
+  if (def.kind === 'root')      { ob.bottom = def.bottom; ob.y = 0; ob.h = def.bottom; ob.shape = makeRootShape(def.w, def.bottom); }
+  else if (def.kind === 'rock') { ob.h = def.h; ob.y = GROUND_Y - def.h; ob.shape = makeRockShape(def.w, def.h); }
+  else                          { ob.h = def.h; ob.baseY = GROUND_Y - def.lift - def.h; ob.y = ob.baseY; }
+  world.obstacles.push(ob);
+}
+function obstacleHitbox(ob) {   // 【碰撞箱可調參數】孤魂內縮 6px、其餘 4px，避免透明邊緣造成不公平碰撞
+  if (ob.kind === 'root') return { x: ob.x + 12, y: 0, w: ob.w - 24, h: ob.bottom };
+  const i = ob.kind === 'ghost' ? 6 : 4;
+  return { x: ob.x + i, y: ob.y + i, w: ob.w - 2 * i, h: ob.h - i };
+}
+function updateObstacles(dt, dx) {
+  const list = world.obstacles;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const ob = list[i];
+    ob.x -= dx;
+    if (ob.kind === 'ghost') ob.y = ob.baseY + Math.sin(animT * 2.4 + ob.phase) * 6;   // 小幅上下漂浮
+    if (ob.hit) { ob.fade -= dt * 2.2; if (ob.fade <= 0) { list.splice(i, 1); continue; } }
+    if (ob.x + ob.w < -120) { list.splice(i, 1); continue; }   // 離開畫面即移除
+    if (!ob.passed && !ob.hit && ob.x + ob.w < player.x - 22) { ob.passed = true; if (state !== 'victorySequence') onDodge(); }
+  }
+}
+
+/* ==========================================================================
+ * 9. 粒子、鬼火、墨點與視覺效果
+ * ========================================================================== */
+const INK   = { color: '20,20,22',    spMin: 60,  spMax: 260, sMin: 1.5, sMax: 4.5, lifeMin: 0.35, lifeMax: 0.8, g: 900 };
+const DUST  = { color: '110,105,92',  spMin: 15,  spMax: 55,  sMin: 1.2, sMax: 2.6, lifeMin: 0.25, lifeMax: 0.5, g: 250, vy: -40 };
+const SHARD = { color: '95,92,84',    spMin: 60,  spMax: 220, sMin: 2,   sMax: 5,   lifeMin: 0.4,  lifeMax: 0.8, g: 900, world: true };
+const WISP  = { color: '160,215,235', spMin: 30,  spMax: 120, sMin: 2,   sMax: 5,   lifeMin: 0.4,  lifeMax: 0.9, g: -120, world: true };
+const LIGHT = { color: '255,244,215', spMin: 20,  spMax: 90,  sMin: 2,   sMax: 5,   lifeMin: 0.6,  lifeMax: 1.4, g: -160 };
+function spawnParticles(x, y, n, o) {
+  const ps = world.particles;
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), sp = rand(o.spMin, o.spMax), life = rand(o.lifeMin, o.lifeMax);
+    ps.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + (o.vy || 0), life, max: life, size: rand(o.sMin, o.sMax), color: o.color, g: o.g, world: !!o.world });
+  }
+  if (ps.length > CONFIG.maxParticles) ps.splice(0, ps.length - CONFIG.maxParticles);   // 粒子上限
+}
+function addText(x, y, text, color, size) { world.texts.push({ x, y, text, color, size, life: 0.9 }); }
+function showBanner(text) { world.banner = { text, life: 2.4, max: 2.4 }; world.lastBanner = text; }
+function updateFx(dt, dx) {
+  const ps = world.particles;
+  for (let i = ps.length - 1; i >= 0; i--) {
+    const p = ps[i]; p.life -= dt;
+    if (p.life <= 0) { ps.splice(i, 1); continue; }
+    p.vy += p.g * dt; p.x += p.vx * dt - (p.world ? dx : 0); p.y += p.vy * dt;
+  }
+  const ts = world.texts;
+  for (let i = ts.length - 1; i >= 0; i--) { const t = ts[i]; t.life -= dt; t.y -= 40 * dt; if (t.life <= 0) ts.splice(i, 1); }
+  if (world.banner) { world.banner.life -= dt; if (world.banner.life <= 0) world.banner = null; }
+  if (world.shake > 0) world.shake = Math.max(0, world.shake - 70 * dt);
+}
+function drawParticles() {
+  for (const p of world.particles) {
+    ctx.fillStyle = `rgba(${p.color},${clamp(p.life / p.max, 0, 1)})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
+  }
+}
+function drawTexts() {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  for (const t of world.texts) {
+    ctx.globalAlpha = clamp(t.life / 0.4, 0, 1);
+    ctx.font = `bold ${t.size}px ${FONT}`;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(233,226,208,0.9)'; ctx.strokeText(t.text, t.x, t.y);
+    ctx.fillStyle = t.color; ctx.fillText(t.text, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawBanner() {   // 階段名稱／返陽門提示
+  const b = world.banner; if (!b) return;
+  const a = clamp(Math.min(b.life / 0.5, (b.max - b.life) / 0.4), 0, 1);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold 30px ${FONT}`; ctx.lineJoin = 'round';
+  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(233,226,208,0.85)'; ctx.strokeText(b.text, W / 2, 118);
+  ctx.fillStyle = '#1c1c1c'; ctx.fillText(b.text, W / 2, 118);
+  ctx.restore();
+}
+
+/* ---------- 角色與物件的 placeholder 繪製 ---------- */
+function drawPlayer() {
+  const p = player;
+  const bob = (p.onGround && !p.ducking && state !== 'victorySequence') ? Math.sin(animT * 14) * 3 : 0;
+  let alpha = 1;
+  if (p.invincible > 0 && Math.floor(animT * 20) % 2 === 0) alpha = 0.35;   // 受創閃爍
+  if (state === 'gameover') alpha *= clamp(1 - world.goTimer / 0.9, 0, 1);
+  if (alpha <= 0) return;
+  const wt = world.soulWhite;   // 通關時魂火由幽藍轉為暖白
+  const glowC = mixRGB([150, 220, 235], [255, 246, 222], wt), bodyTop = mixRGB([228, 246, 248], [255, 252, 244], wt), bodyBot = mixRGB([150, 215, 230], [255, 236, 200], wt);
+  ctx.save(); ctx.globalAlpha = alpha;
+  const cy = p.y - (p.ducking ? 18 : 36) + bob;
+  const glow = ctx.createRadialGradient(p.x, cy, 4, p.x, cy, 54 + wt * 40);     // 幽藍光暈
+  glow.addColorStop(0, `rgba(${glowC},${0.45 + wt * 0.3})`); glow.addColorStop(1, `rgba(${glowC},0)`);
+  ctx.fillStyle = glow; ctx.fillRect(p.x - 100, cy - 100, 200, 200);
+  if (IMG.player) {   // 【替換素材】正式主角 PNG：以腳底為錨點縮放
+    if (p.ducking) ctx.drawImage(IMG.player, p.x - 40, p.y - 46 + bob, 80, 46);
+    else ctx.drawImage(IMG.player, p.x - 32, p.y - 84 + bob, 64, 84);
+    ctx.restore(); return;
+  }
+  ctx.translate(p.x, p.y + bob);
+  if (p.ducking) ctx.scale(1.25, 0.55);
+  else if (!p.onGround) { ctx.rotate(clamp(-p.vy / 2600, -0.3, 0.3)); ctx.scale(0.92, 1.08); }   // 空中微旋轉、拉長
+  const w1 = Math.sin(animT * 10) * 4;
+  ctx.beginPath();
+  ctx.moveTo(-15, -52);
+  ctx.bezierCurveTo(-15, -74, 15, -74, 15, -52);
+  ctx.bezierCurveTo(17, -40, 14, -24, 10, -8);
+  ctx.quadraticCurveTo(4, -2, 8 + w1, 4);
+  ctx.quadraticCurveTo(0, -6, -4 + w1, 6);
+  ctx.quadraticCurveTo(-8, -6, -14 - w1, 3);
+  ctx.quadraticCurveTo(-12, -20, -15, -52);
+  ctx.closePath();
+  const body = ctx.createLinearGradient(0, -74, 0, 6);
+  body.addColorStop(0, `rgba(${bodyTop},0.95)`); body.addColorStop(1, `rgba(${bodyBot},0.5)`);
+  ctx.fillStyle = body; ctx.fill();
+  ctx.strokeStyle = `rgba(${mixRGB([90, 170, 190], [220, 190, 130], wt)},0.6)`; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(30,40,50,0.8)';
+  ctx.beginPath(); ctx.ellipse(3, -55, 2.4, 4, 0, 0, TAU); ctx.ellipse(10, -55, 2.4, 4, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(${glowC},0.45)`; ctx.lineWidth = 2;   // 拖曳的魂氣
+  ctx.beginPath(); ctx.moveTo(-14, -34); ctx.quadraticCurveTo(-26, -30 + w1, -34, -38); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-13, -20); ctx.quadraticCurveTo(-24, -14 - w1, -30, -22); ctx.stroke();
+  ctx.restore();
+}
+function drawWuchang(x, dark) {
+  const bob = Math.abs(Math.sin(animT * 11 + (dark ? 0 : 1.3))) * 4;
+  const sw = Math.sin(animT * 11 + (dark ? 0 : 1.3)) * 4;
+  const robe = dark ? '#141416' : '#e6e1d3', line = dark ? 'rgba(0,0,0,0.9)' : 'rgba(30,30,30,0.85)';
+  ctx.save(); ctx.translate(x, GROUND_Y - bob);
+  const key = dark ? 'blackWuchang' : 'whiteWuchang';
+  if (IMG[key]) { ctx.drawImage(IMG[key], -42, -196, 84, 196); ctx.restore(); return; }   // 【替換素材】黑／白無常 PNG
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-13, -105); ctx.lineTo(13, -105);
+  ctx.quadraticCurveTo(24, -60, 30 + sw, 0); ctx.lineTo(-30 + sw, 0); ctx.quadraticCurveTo(-24, -60, -13, -105); ctx.closePath();
+  ctx.fillStyle = robe; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -95); ctx.quadraticCurveTo(34, -80, 40 + sw, -50); ctx.lineTo(28, -44); ctx.quadraticCurveTo(20, -70, 6, -80); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-10, -95); ctx.quadraticCurveTo(-34, -80, -38 - sw, -52); ctx.lineTo(-26, -46); ctx.quadraticCurveTo(-20, -70, -6, -80); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = dark ? 'rgba(95,95,100,0.5)' : 'rgba(60,60,60,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, -104); ctx.lineTo(-4, -60); ctx.lineTo(2, -10); ctx.stroke();
+  ctx.fillStyle = dark ? '#c9c2b2' : '#f3efe4'; ctx.strokeStyle = line; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.ellipse(0, -120, 11, 14, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(15,15,15,0.95)';
+  ctx.beginPath(); ctx.ellipse(-4, -122, 2, 3.2, 0, 0, TAU); ctx.ellipse(5, -122, 2, 3.2, 0, 0, TAU); ctx.fill();
+  if (!dark) { ctx.fillStyle = '#b0463a'; ctx.beginPath(); ctx.moveTo(-3, -111); ctx.quadraticCurveTo(0, -97, 3, -111); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = robe; ctx.strokeStyle = line; ctx.lineWidth = 2;   // 高帽
+  ctx.beginPath(); ctx.moveTo(-11, -132); ctx.lineTo(11, -132); ctx.lineTo(15, -192); ctx.lineTo(-15, -192); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = dark ? '#e6e1d3' : '#141416'; ctx.fillRect(-12, -146, 24, 5);
+  ctx.restore();
+}
+function drawPursuers() {
+  if (world.wuchangAlpha <= 0.01) return;
+  const px = world.pursuerX;
+  ctx.save(); ctx.globalAlpha = world.wuchangAlpha;
+  const mist = ctx.createRadialGradient(px, GROUND_Y - 90, 10, px, GROUND_Y - 90, 130);
+  mist.addColorStop(0, 'rgba(20,20,26,0.38)'); mist.addColorStop(1, 'rgba(20,20,26,0)');
+  ctx.fillStyle = mist; ctx.fillRect(px - 140, GROUND_Y - 230, 280, 260);
+  drawWuchang(px - 30, false);
+  drawWuchang(px + 30, true);
+  ctx.restore();
+}
+function drawRock(ob) {
+  ctx.save(); ctx.translate(ob.x, ob.y);
+  for (const L of ob.shape) {
+    ctx.beginPath();
+    L.pts.forEach(([a, r], j) => { const x = L.cx + Math.cos(a) * L.rx * r, y = L.cy + Math.sin(a) * L.ry * r; j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, L.cy - L.ry, 0, L.cy + L.ry);
+    g.addColorStop(0, '#8a877c'); g.addColorStop(0.6, '#55534c'); g.addColorStop(1, '#2a2926');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(18,18,18,0.9)'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(15,15,15,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(ob.w * 0.35, ob.h * 0.35); ctx.lineTo(ob.w * 0.45, ob.h * 0.6); ctx.lineTo(ob.w * 0.38, ob.h * 0.85); ctx.stroke();
+  ctx.restore();
+}
+function drawRoot(ob) {
+  const R = ob.shape, sway = Math.sin(animT * 1.6 + R.phase) * 4;   // 進場輕微搖晃
+  const px = s => s.x + sway * (s.y / ob.bottom);
+  ctx.save(); ctx.translate(ob.x, 0);
+  const g = ctx.createRadialGradient(ob.w / 2, -10, 10, ob.w / 2, -10, 90);     // 上方樹冠陰影
+  g.addColorStop(0, 'rgba(28,24,20,0.55)'); g.addColorStop(1, 'rgba(28,24,20,0)');
+  ctx.fillStyle = g; ctx.fillRect(ob.w / 2 - 90, -10, 180, 100);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#2c241f';
+  for (let i = 1; i < R.segs.length; i++) {
+    const a = R.segs[i - 1], b = R.segs[i];
+    ctx.lineWidth = b.lw; ctx.beginPath(); ctx.moveTo(px(a), a.y); ctx.lineTo(px(b), b.y); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(120,100,80,0.35)'; ctx.lineWidth = 2; ctx.beginPath();
+  R.segs.forEach((s, i) => { const x = px(s) - s.lw * 0.25; i ? ctx.lineTo(x, s.y) : ctx.moveTo(x, s.y); });
+  ctx.stroke();
+  for (const tn of R.tendrils) {
+    const s = R.segs[Math.round(tn.at * (R.segs.length - 1))], sx = px(s), sy = s.y;
+    ctx.strokeStyle = '#33291f'; ctx.lineWidth = tn.sw * 2.4; ctx.beginPath(); ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(sx + tn.dir * tn.len * 0.7, sy + tn.len * 0.3, sx + tn.dir * tn.len * 0.5 + sway, sy + tn.len); ctx.stroke();
+  }
+  const tip = R.segs[R.segs.length - 1];
+  ctx.fillStyle = '#1d1814'; ctx.beginPath(); ctx.ellipse(px(tip), tip.y + 2, 5, 7, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawGhost(ob) {
+  const cx = ob.x + ob.w / 2, by = ob.y + ob.h, r = ob.w * 0.42, top = by - ob.h + r;
+  ctx.save();
+  ctx.globalAlpha *= 0.8 + Math.sin(animT * 7 + ob.phase) * 0.12;
+  let g = ctx.createRadialGradient(cx, by - ob.h * 0.55, 4, cx, by - ob.h * 0.55, ob.w * 0.9);
+  g.addColorStop(0, 'rgba(120,180,210,0.35)'); g.addColorStop(1, 'rgba(120,180,210,0)');
+  ctx.fillStyle = g; ctx.fillRect(cx - ob.w, by - ob.h - ob.w * 0.5, ob.w * 2, ob.h + ob.w);
+  ctx.beginPath(); ctx.moveTo(cx - r, by - 8); ctx.lineTo(cx - r, top); ctx.arc(cx, top, r, Math.PI, 0); ctx.lineTo(cx + r, by - 8);
+  const step = 2 * r / 4;
+  for (let i = 0; i < 4; i++) {
+    const dy = (i % 2 ? -6 : 4) + Math.sin(animT * 6 + i + ob.phase) * 3;
+    ctx.quadraticCurveTo(cx + r - (i + 0.5) * step, by + dy, cx + r - (i + 1) * step, by - 8);
+  }
+  ctx.closePath();
+  g = ctx.createLinearGradient(0, by - ob.h, 0, by);
+  g.addColorStop(0, 'rgba(215,228,235,0.85)'); g.addColorStop(1, 'rgba(160,190,205,0.25)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(110,150,170,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(20,28,38,0.85)';
+  ctx.beginPath(); ctx.ellipse(cx - 7, top - 2, 3, 5, 0, 0, TAU); ctx.ellipse(cx + 7, top - 2, 3, 5, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx, top + 12, 3, 4, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawObstacle(ob) {
+  ctx.save();
+  if (ob.fade != null) ctx.globalAlpha = clamp(ob.fade, 0, 1);
+  const key = ob.kind === 'rock' ? 'rock' : ob.kind === 'root' ? 'hangingRoot' : 'ghost';
+  if (IMG[key]) {   // 【替換素材】正式障礙 PNG：依物件外框縮放（垂根從畫面頂端畫到根尖）
+    if (ob.kind === 'root') ctx.drawImage(IMG[key], ob.x - 10, -4, ob.w + 20, ob.bottom + 14);
+    else ctx.drawImage(IMG[key], ob.x - 4, ob.y - 4, ob.w + 8, ob.h + 8);
+  } else if (ob.kind === 'rock') drawRock(ob);
+  else if (ob.kind === 'root') drawRoot(ob);
+  else drawGhost(ob);
+  ctx.restore();
+}
+
+/* ---------- 返陽門與終點光線   【返陽門與勝利演出】 ---------- */
+function drawFarGate(t) {   // 850m 起遠方逐漸亮起的暖光；返陽門進場後淡出
+  if (t <= 0) return;
+  const gx = W - 110, gy = GROUND_Y - 130, R = 50 + t * 110;
+  ctx.save();
+  const g = ctx.createRadialGradient(gx, gy, 2, gx, gy, R);
+  g.addColorStop(0, `rgba(255,246,220,${0.35 + t * 0.45})`); g.addColorStop(0.5, `rgba(255,228,170,${0.15 + t * 0.2})`); g.addColorStop(1, 'rgba(255,228,170,0)');
+  ctx.fillStyle = g; ctx.fillRect(gx - R, gy - R, R * 2, R * 2);
+  ctx.fillStyle = `rgba(255,252,240,${0.5 + t * 0.4})`;
+  ctx.beginPath(); ctx.ellipse(gx, gy + 20, 3 + t * 6, 40 + t * 60, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawGate() {
+  const gt = world.gate; if (!gt) return;
+  const seq = state === 'victorySequence' || state === 'victory' ? world.seqT : 0;
+  const cx = gt.x + gt.w / 2, top = GROUND_Y - 230, bottom = GROUND_Y + 4, hw = gt.w / 2;
+  ctx.save();
+  const R = 200 + seq * 220;   // 光暈隨演出擴張
+  let g = ctx.createRadialGradient(cx, GROUND_Y - 110, 10, cx, GROUND_Y - 110, R);
+  g.addColorStop(0, 'rgba(255,248,225,0.85)'); g.addColorStop(0.4, 'rgba(255,236,190,0.4)'); g.addColorStop(1, 'rgba(255,236,190,0)');
+  ctx.fillStyle = g; ctx.fillRect(cx - R, GROUND_Y - 110 - R, R * 2, R * 2);
+  // 光芒（緩慢旋轉的淡金射線）
+  ctx.globalAlpha = 0.18 + seq * 0.1;
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI / 2 + (i - 3) * 0.26 + Math.sin(animT * 0.5 + i) * 0.05, len = 260 + seq * 200;
+    ctx.fillStyle = '#ffe9b8';
+    ctx.beginPath(); ctx.moveTo(cx, GROUND_Y - 110);
+    ctx.lineTo(cx + Math.cos(a - 0.04) * len, GROUND_Y - 110 + Math.sin(a - 0.04) * len);
+    ctx.lineTo(cx + Math.cos(a + 0.04) * len, GROUND_Y - 110 + Math.sin(a + 0.04) * len); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // 門扉：拱形暖白光門，水墨勾邊
+  const arch = () => { ctx.beginPath(); ctx.moveTo(cx - hw, bottom); ctx.lineTo(cx - hw, top + 70); ctx.quadraticCurveTo(cx, top - 90, cx + hw, top + 70); ctx.lineTo(cx + hw, bottom); ctx.closePath(); };
+  arch();
+  g = ctx.createLinearGradient(0, top, 0, bottom);
+  g.addColorStop(0, 'rgba(255,252,240,0.98)'); g.addColorStop(0.6, 'rgba(255,240,205,0.9)'); g.addColorStop(1, 'rgba(255,228,170,0.7)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,214,140,0.7)'; ctx.lineWidth = 14; arch(); ctx.stroke();   // 外圈暖光
+  ctx.strokeStyle = 'rgba(38,30,24,0.8)'; ctx.lineWidth = 5; arch(); ctx.stroke();       // 墨筆勾邊
+  ctx.strokeStyle = 'rgba(38,30,24,0.35)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx - hw + 6, bottom); ctx.lineTo(cx - hw + 6, top + 72); ctx.quadraticCurveTo(cx, top - 82, cx + hw - 6, top + 72); ctx.lineTo(cx + hw - 6, bottom); ctx.stroke();
+  // 門柱與匾額
+  ctx.fillStyle = '#2a2420';
+  ctx.fillRect(cx - hw - 12, top + 60, 12, bottom - top - 60); ctx.fillRect(cx + hw, top + 60, 12, bottom - top - 60);
+  ctx.fillStyle = '#e9e2d0'; ctx.strokeStyle = '#2a2420'; ctx.lineWidth = 2;
+  ctx.fillRect(cx - 30, top - 14, 60, 26); ctx.strokeRect(cx - 30, top - 14, 60, 26);
+  ctx.fillStyle = '#b0463a'; ctx.font = `bold 17px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('返陽', cx, top);
+  ctx.restore();
+}
+
+/* ==========================================================================
+ * 10. 輸入控制與右鍵選單禁用   【右鍵停用】只在遊戲容器 #wrap 內停用瀏覽器右鍵選單，不影響整個網頁
+ * ========================================================================== */
+function isRunning() { return state === 'tutorial' || state === 'playing' || state === 'finishApproach'; }
+function pressJump() {   // 暫停、結束、勝利、尚未開始時一律不觸發
+  if (!isRunning()) return;
+  if (player.onGround) doJump(); else player.jumpBuffer = CONFIG.jumpBufferTime;
+}
+function pressDuck() {
+  if (!isRunning()) return;
+  player.duckHeld = true;
+  if (player.onGround) startDuck();
+}
+function releaseDuck() { player.duckHeld = false; }
+function bindInput() {
+  wrap.addEventListener('contextmenu', e => e.preventDefault());   // 【右鍵停用】僅限 #wrap 範圍
+  wrap.addEventListener('mousedown', e => {
+    if (e.target.closest('button')) return;      // 按鈕本身由 click 處理
+    Sfx.init();
+    if (e.button === 0) pressJump(); else if (e.button === 2) pressDuck();
+  });
+  window.addEventListener('mouseup', e => { if (e.button === 2) releaseDuck(); });
+
+  // 手機：畫面左半跳躍、右半下鏟（非必要功能，桌機為主）
+  const touchSide = new Map();
+  wrap.addEventListener('touchstart', e => {
+    if (e.target.closest('button')) return;
+    e.preventDefault(); Sfx.init();
+    const rect = wrap.getBoundingClientRect();
+    for (const t of e.changedTouches) {
+      const side = (t.clientX - rect.left) < rect.width / 2 ? 'jump' : 'duck';
+      touchSide.set(t.identifier, side);
+      side === 'jump' ? pressJump() : pressDuck();
+    }
+  }, { passive: false });
+  const touchEnd = e => {
+    for (const t of e.changedTouches) {
+      const side = touchSide.get(t.identifier); touchSide.delete(t.identifier);
+      if (side === 'duck') releaseDuck();
+    }
+  };
+  wrap.addEventListener('touchend', touchEnd); wrap.addEventListener('touchcancel', touchEnd);
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'ArrowUp') e.preventDefault();
+    if (e.repeat) return;
+    Sfx.init();
+    switch (e.code) {
+      case 'Space':     if (state === 'start') onStart(); else pressJump(); break;
+      case 'KeyW': case 'ArrowUp': pressJump(); break;
+      case 'Enter':     if (state === 'start') onStart(); break;
+      case 'KeyS': case 'ArrowDown': pressDuck(); break;
+      case 'KeyR':      if ((state === 'gameover' && world.overShown) || state === 'victory') restart(); break;
+      case 'Escape':    togglePause(); break;
+    }
+  });
+  window.addEventListener('keyup', e => { if (e.code === 'KeyS' || e.code === 'ArrowDown') releaseDuck(); });
+
+  $('btnStart').addEventListener('click', () => { Sfx.init(); onStart(); });
+  $('btnRetry').addEventListener('click', () => { Sfx.init(); restart(); });
+  $('btnRetryWin').addEventListener('click', () => { Sfx.init(); restart(); });
+  $('btnResume').addEventListener('click', togglePause);
+  $('btnPause').addEventListener('click', togglePause);
+  const toggleMute = () => { Sfx.init(); Sfx.setMuted(!Sfx.muted); Store.set(KEY_MUTE, Sfx.muted); updateMuteBtn(); };   // 【localStorage 紀錄】靜音
+  $('btnMute').addEventListener('click', toggleMute);
+  $('btnMuteStart').addEventListener('click', toggleMute);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && isRunning()) togglePause(); });
+  window.addEventListener('blur', () => { if (isRunning()) togglePause(); });
+}
+
+/* ==========================================================================
+ * 11. 碰撞判定（AABB；碰撞箱依跳躍／下鏟狀態調整，皆比外觀略小以求寬容）
+ * ========================================================================== */
+function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+function checkCollisions() {
+  if (player.invincible > 0) return;   // 撞擊後無敵，同一障礙不會重複扣血
+  const hb = playerHitbox();
+  for (const ob of world.obstacles) {
+    if (ob.hit || ob.x > player.x + 80 || ob.x + ob.w < player.x - 80) continue;
+    if (overlap(hb, obstacleHitbox(ob))) { onHit(ob); break; }
+  }
+}
+function onDodge() {
+  world.dodges++; world.combo++;
+  world.maxCombo = Math.max(world.maxCombo, world.combo);
+  const Sc = CONFIG.score;
+  const bonus = Sc.dodge + Sc.comboStep * Math.min(world.combo, Sc.comboCap);
+  world.bonusScore += bonus;
+  world.pursuit = Math.min(CONFIG.wuchangInitialDistance, world.pursuit + CONFIG.wuchangDodgeRetreat);   // 成功閃避：稍微拉開
+  addText(player.x + 10, player.y - 96, '+' + bonus, '#2b6f80', 18);
+  if (world.combo >= 3) addText(player.x + 10, player.y - 118, '連擊 ×' + world.combo, '#b0463a', 16);
+  spawnParticles(player.x + 6, player.y - 40, 3, WISP);
+  if (world.combo > 0 && world.combo % 5 === 0) Sfx.combo(); else Sfx.dodge();
+}
+function onHit(ob) {
+  ob.hit = true; ob.fade = 1;
+  world.hearts--; updateHearts(true);
+  world.combo = 0;
+  player.invincible = CONFIG.invulnerableDuration;
+  world.speedMult = CONFIG.hitSlowFactor;
+  world.hitStop = CONFIG.hitStopTime;
+  world.shake = 16;
+  world.pursuit -= CONFIG.wuchangHitAdvance;   // 撞擊：黑白無常明顯逼近
+  spawnParticles(player.x, player.y - 36, 22, INK);
+  const hb = obstacleHitbox(ob);
+  spawnParticles(hb.x + hb.w / 2, ob.kind === 'root' ? hb.h - 30 : hb.y + hb.h / 2, 14, ob.kind === 'ghost' ? WISP : SHARD);
+  addText(player.x, player.y - 100, '−1 魂力', '#b0463a', 20);
+  Sfx.hit();
+  if (world.hearts <= 0) gameOver('health');
+  else if (world.pursuit <= CONFIG.wuchangCatchDistance) gameOver('caught');
+}
+
+/* ==========================================================================
+ * 12. 難度、關卡進度與障礙生成
+ * ========================================================================== */
+const meters = () => world.runDist / CONFIG.pxPerMeter;
+function phaseIndexAt(m) { const ph = CONFIG.phases; for (let i = 0; i < ph.length; i++) if (m < ph[i].until) return i; return ph.length - 1; }
+function speedAt(m) {   // 依公尺數線性插值
+  const c = CONFIG.speedCurve;
+  if (m <= c[0][0]) return c[0][1];
+  for (let i = 1; i < c.length; i++) if (m <= c[i][0]) { const [m0, s0] = c[i - 1], [m1, s1] = c[i]; return s0 + (s1 - s0) * (m - m0) / (m1 - m0); }
+  return c[c.length - 1][1];
+}
+// 【障礙生成安全檢查】每種障礙對應的動作，以及「前一動作 → 下一動作」所需的最短秒數間隔
+const ACTION  = { rock: 'jump', rockWide: 'jump', root: 'duck', ghostLow: 'jump', ghostMid: 'duck', ghostHigh: 'stay' };
+const MIN_GAP = {
+  jump: { jump: 0.95, duck: 0.8, stay: 0.6 },   // 跳→跳需等落地；跳→鏟需落地後再鏟
+  duck: { jump: 0.75, duck: 0.5, stay: 0.6 },   // 鏟→跳需先起身
+  stay: { jump: 0.6,  duck: 0.6, stay: 0.6 },
+};
+function patternIsSafe(p) {
+  const items = [...p.items].sort((a, b) => a.t - b.t);
+  for (let i = 1; i < items.length; i++) {
+    const a = ACTION[items[i - 1].type], b = ACTION[items[i].type];
+    if (items[i].t - items[i - 1].t < MIN_GAP[a][b] - 1e-6) return false;
+  }
+  return true;
+}
+function validatePatternSets() {   // 初始化時過濾掉任何必死組合（石堆／垂根過近、落地瞬間需再跳等）
+  for (const k in PATTERN_SETS) PATTERN_SETS[k] = PATTERN_SETS[k].filter(p => { const ok = patternIsSafe(p); if (!ok) console.warn('移除不安全障礙組合', k, p); return ok; });
+}
+function patternWeight(p) {   // 單一障礙套用 obstacleWeights 機率權重
+  if (p.items.length !== 1) return p.w;
+  return p.w * (CONFIG.obstacleWeights[OBSTACLES[p.items[0].type].kind] || 1);
+}
+function pickPattern(list) {
+  let s = 0; for (const p of list) s += patternWeight(p);
+  let r = Math.random() * s;
+  for (const p of list) { r -= patternWeight(p); if (r <= 0) return p; }
+  return list[list.length - 1];
+}
+function spawnPattern() {
+  const phase = CONFIG.phases[world.phaseIdx];
+  const pat = pickPattern(PATTERN_SETS[phase.set]);
+  const sp = world.nominalSpeed;     // 以名目速度換算像素間距；受創減速時實際到達間隔只會更寬
+  let lastT = 0;
+  // 生成點固定在畫面外 SPAWN_X，距主角 800px → 任何速度下都有 ≥1.25 秒反應時間，不會貼臉出現
+  for (const item of pat.items) { makeObstacle(item.type, SPAWN_X + item.t * sp); lastT = Math.max(lastT, item.t); }
+  world.nextSpawnDist = world.distance + (lastT + rand(phase.minGap, phase.maxGap)) * sp;
+}
+function updateProgress() {   // 階段切換、橫幅提示、終點觸發
+  const m = meters();
+  const idx = phaseIndexAt(m);
+  if (idx !== world.phaseIdx) { world.phaseIdx = idx; const ph = CONFIG.phases[idx]; if (ph.name !== world.lastBanner) showBanner(ph.name); }
+  if (!world.nearShown && m >= CONFIG.gateVisibleDistance) { world.nearShown = true; showBanner('返陽門將近'); $('hudNear').classList.add('show'); Sfx.near(); }
+  if (state !== 'finishApproach' && m >= CONFIG.finishApproachDistance) beginFinishApproach();
+}
+
+/* ==========================================================================
+ * 13. 遊戲狀態管理
+ *     start | tutorial | playing | paused | finishApproach | victorySequence | victory | gameover
+ * ========================================================================== */
+const world = {
+  nominalSpeed: CONFIG.initialSpeed, speed: 0, speedMult: 1,
+  distance: 0, runDist: 0, time: 0,
+  score: 0, bonusScore: 0, dodges: 0, combo: 0, maxCombo: 0, hearts: CONFIG.playerMaxHealth,
+  nextSpawnDist: Infinity, obstacles: [], particles: [], texts: [], banner: null, lastBanner: null,
+  shake: 0, hitStop: 0, goTimer: 0, overShown: false, cause: null,
+  pursuit: CONFIG.wuchangInitialDistance, pursuerX: PLAYER_X - CONFIG.wuchangInitialDistance, wuchangAlpha: 1, droneT: 0,
+  phaseIdx: 0, nearShown: false, gate: null, seqT: 0, soulWhite: 0, wispAcc: 0,
+  hintT: 0, didJump: false, didDuck: false,
+};
+let state = 'start', prevState = 'playing';
+let animT = 0, lastTime = 0;
+
+const SCREENS = { start: $('screenStart'), pause: $('screenPause'), over: $('screenOver'), victory: $('screenVictory') };
+function showScreen(name) { for (const k in SCREENS) SCREENS[k].classList.toggle('show', k === name); }
+function setState(s) {
+  state = s;
+  showScreen({ start: 'start', paused: 'pause', victory: 'victory' }[s] || null);   // gameover 畫面延後由 showGameOver 顯示
+}
+function resetGame() {   // 重新開始時完整重置分數、距離、生命、障礙、無常距離、連擊、按鍵與計時
+  world.nominalSpeed = CONFIG.initialSpeed; world.speed = 0; world.speedMult = 1;
+  world.runDist = 0; world.time = 0; world.score = 0; world.bonusScore = 0;
+  world.dodges = 0; world.combo = 0; world.maxCombo = 0; world.hearts = CONFIG.playerMaxHealth;
+  world.nextSpawnDist = Infinity; world.obstacles.length = 0; world.particles.length = 0; world.texts.length = 0;
+  world.banner = null; world.lastBanner = null;
+  world.shake = 0; world.hitStop = 0; world.goTimer = 0; world.overShown = false; world.cause = null;
+  world.pursuit = CONFIG.wuchangInitialDistance; world.pursuerX = PLAYER_X - CONFIG.wuchangInitialDistance; world.wuchangAlpha = 1; world.droneT = 0;
+  world.phaseIdx = 0; world.nearShown = false; world.gate = null; world.seqT = 0; world.soulWhite = 0; world.wispAcc = 0;
+  world.hintT = 0; world.didJump = false; world.didDuck = false;
+  $('hudNear').classList.remove('show'); $('hint').classList.remove('show');
+  resetPlayer(); updateHearts(); updateHUD();
+}
+function onStart() {
+  resetGame();
+  world.nextSpawnDist = world.distance + CONFIG.firstSpawnDelay * CONFIG.initialSpeed;
+  setState('tutorial');                 // 前幾秒顯示半透明教學提示，遊戲同時進行
+  $('hint').classList.add('show');
+}
+function endTutorial() {
+  $('hint').classList.remove('show');
+  if (state === 'tutorial') setState('playing');
+}
+function restart() { onStart(); }
+function togglePause() {
+  if (isRunning()) { prevState = state; setState('paused'); player.duckHeld = false; }
+  else if (state === 'paused') { setState(prevState); lastTime = 0; }
+}
+function gameOver(cause) {
+  if (!isRunning()) return;
+  world.cause = cause;
+  setState('gameover');
+  world.goTimer = 0; world.shake = 18;
+  player.duckHeld = false;
+  Sfx.over();
+}
+function beginFinishApproach() {   // 【返陽門與勝利演出】1,000m：停止生成障礙、返陽門進場
+  setState('finishApproach');
+  world.nextSpawnDist = Infinity;
+  world.gate = { x: W + 260, w: 150 };
+  showBanner('返陽門就在前方，莫回頭');
+  Sfx.gate();
+}
+function beginVictorySequence() {   // 玩家跑入光門：不再受傷、播放演出
+  setState('victorySequence');
+  world.seqT = 0; world.wispAcc = 0;
+  player.duckHeld = false; player.ducking = false; player.invincible = 0;
+  world.shake = 0; world.hitStop = 0;
+  spawnParticles(player.x, player.y - 40, 40, LIGHT);
+  Sfx.victory();
+}
+
+/* ==========================================================================
+ * 14. HUD、開始、暫停、失敗與通關 UI
+ * ========================================================================== */
+function showGameOver() {
+  world.overShown = true;
+  const score = Math.floor(world.score);
+  let record = false;
+  if (score > rec.best) { rec.best = score; record = true; }
+  if (world.dodges > rec.bestDodges) rec.bestDodges = world.dodges;
+  saveRecords();   // 【localStorage 紀錄】
+  $('overCause').textContent  = world.cause === 'caught' ? '黑白無常追上了你' : '魂力耗盡';
+  $('overRecord').textContent = record ? '── 打破最高分 ──' : '';
+  $('overScore').textContent  = score;
+  $('overDist').textContent   = Math.floor(Math.min(meters(), CONFIG.levelDistance)) + ' m';
+  $('overTime').textContent   = world.time.toFixed(1) + ' s';
+  $('overDodge').textContent  = world.dodges;
+  $('overCombo').textContent  = world.maxCombo;
+  $('overBest').textContent   = rec.best;
+  refreshRecordUI(); updateHUD();
+  showScreen('over');
+}
+function showVictory() {
+  const Sc = CONFIG.score;
+  // 通關總分 = 距離分 + 閃避分（含連擊） + 通關獎勵 + 剩餘魂力獎勵 + 最高連擊獎勵 − 時間成本
+  const total = Math.max(0, Math.floor(world.score + Sc.clear + world.hearts * Sc.health + world.maxCombo * Sc.maxCombo - Math.floor(world.time * Sc.timeCost)));
+  const t = Math.round(world.time * 10) / 10;
+  const lines = [];
+  if (total > rec.best) { rec.best = total; lines.push('打破最高分'); }
+  if (rec.bestTime == null || t < rec.bestTime) { rec.bestTime = t; lines.push('刷新最佳通關時間'); }
+  if (world.dodges > rec.bestDodges) rec.bestDodges = world.dodges;
+  rec.clears++;
+  saveRecords();   // 【localStorage 紀錄】
+  $('winRecord').textContent = lines.length ? '── ' + lines.join('　') + ' ──' : '';
+  $('winTime').textContent   = t.toFixed(1) + ' s';
+  $('winScore').textContent  = total;
+  $('winHealth').textContent = world.hearts + ' / ' + CONFIG.playerMaxHealth;
+  $('winDodge').textContent  = world.dodges;
+  $('winCombo').textContent  = world.maxCombo;
+  $('winClears').textContent = rec.clears + ' 次';
+  world.score = total;
+  refreshRecordUI(); updateHUD();
+  setState('victory');
+}
+function refreshRecordUI() {
+  $('startBest').textContent = rec.best; $('startBestTime').textContent = fmtTime(rec.bestTime); $('startClears').textContent = rec.clears;
+  $('hudBest').textContent = rec.best; $('hudBestTime').textContent = fmtTime(rec.bestTime);
+}
+const heartEls = [];
+function buildHearts() {
+  const box = $('hearts');
+  for (let i = 0; i < CONFIG.playerMaxHealth; i++) {
+    const s = document.createElement('span');
+    s.innerHTML = '<svg class="flame" viewBox="0 0 24 32"><path d="M12 1c2 6 9 9 9 17a9 9 0 0 1-18 0c0-4 2-6 4-8 0 3 1 4 3 5-1-5 0-10 2-14z" fill="#8fd3e2" stroke="#2b5f6d" stroke-width="1.2"/><path d="M12 14c1 3 4 4 4 8a4 4 0 0 1-8 0c0-3 3-4 4-8z" fill="#e6f7fa"/></svg>';
+    box.appendChild(s); heartEls.push(s.firstChild);
+  }
+}
+function updateHearts(flash) {
+  heartEls.forEach((el, i) => el.classList.toggle('lost', i >= world.hearts));
+  if (flash) { const b = $('hearts'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
+}
+function updateHUD() {
+  $('hudScore').textContent = Math.floor(world.score);
+  $('hudDist').textContent  = Math.floor(Math.min(meters(), CONFIG.levelDistance));
+  $('hudTime').textContent  = world.time.toFixed(1);
+  const d = state === 'finishApproach' || state === 'victorySequence' || state === 'victory' ? 0 : dangerRatio();
+  const fill = $('dangerFill');
+  fill.style.width = (d * 100).toFixed(0) + '%';
+  fill.className = d >= 0.67 ? 'high' : d >= 0.34 ? 'mid' : '';
+  $('dangerText').textContent = d >= 0.67 ? '危急' : d >= 0.34 ? '逼近' : '遠';
+}
+function updateMuteBtn() {
+  const b = $('btnMute'); b.textContent = Sfx.muted ? '×' : '♪'; b.title = Sfx.muted ? '取消靜音' : '靜音';
+  $('btnMuteStart').textContent = Sfx.muted ? '× 音效關閉' : '♪ 音效開啟';
+}
+
+/* ==========================================================================
+ * 15. requestAnimationFrame 遊戲主迴圈（delta time）
+ * ========================================================================== */
+function updateRun(dtRaw) {   // tutorial / playing / finishApproach 共用
+  let dt = dtRaw;
+  if (world.hitStop > 0) { world.hitStop -= dtRaw; dt = dtRaw * CONFIG.hitStopScale; }   // 受創慢動作
+  world.time += dtRaw;
+  world.nominalSpeed = clamp(speedAt(Math.min(meters(), CONFIG.levelDistance)), CONFIG.initialSpeed, CONFIG.maxSpeed);
+  if (world.speedMult < 1) world.speedMult = Math.min(1, world.speedMult + dt * (1 - CONFIG.hitSlowFactor) / CONFIG.hitSlowRecover);
+  world.speed = world.nominalSpeed * world.speedMult;
+  const dx = world.speed * dt;
+  world.distance += dx; world.runDist += dx;
+  updateProgress();
+  world.score = Math.min(meters(), CONFIG.levelDistance) * CONFIG.score.perMeter + world.bonusScore;
+  advanceScroll(dx, dt);
+  updatePlayer(dt);
+  if (state !== 'finishApproach' && world.distance >= world.nextSpawnDist) spawnPattern();
+  updateObstacles(dt, dx);
+  checkCollisions();
+  updatePursuers(dt);
+  if (world.gate && state === 'finishApproach') {
+    world.gate.x -= dx;
+    if (player.x >= world.gate.x + world.gate.w * 0.3) beginVictorySequence();
+  }
+  updateFx(dt, dx);
+  if (state === 'tutorial') {
+    world.hintT += dtRaw;
+    if (world.hintT >= CONFIG.tutorialHintTime || (world.didJump && world.didDuck && world.hintT > 1.2)) endTutorial();
+  }
+  updateHUD();
+}
+function updateVictorySequence(dt) {   // 【返陽門與勝利演出】墨色散去、紙面泛白、魂火轉白、光門擴張
+  world.seqT += dt;
+  world.speedMult = Math.max(0, world.speedMult - dt * 0.45);
+  const dx = world.nominalSpeed * world.speedMult * dt;
+  advanceScroll(dx, dt);
+  world.gate.x -= dx * 0.4;
+  world.soulWhite = clamp(world.seqT / 1.5, 0, 1);
+  player.x += dt * 30;
+  player.y = GROUND_Y - Math.pow(Math.max(0, world.seqT - 1), 1.4) * 14;
+  for (const ob of world.obstacles) ob.x -= dx;
+  world.wispAcc += dt;
+  while (world.wispAcc > 0.1) { world.wispAcc -= 0.1; spawnParticles(player.x + rand(-22, 22), player.y - rand(0, 70), 2, LIGHT); }
+  updateFx(dt, dx);
+  updateHUD();
+  if (world.seqT >= CONFIG.victorySequenceDuration) showVictory();
+}
+function updateIdle(dt) {
+  const dx = CONFIG.initialSpeed * CONFIG.idleSpeedMult * dt;
+  advanceScroll(dx, dt); updatePursuers(dt); updateFx(dt, dx);
+}
+function updateGameOver(dt) {
+  world.goTimer += dt;
+  world.speedMult = Math.max(0, world.speedMult - dt * 1.6);
+  const dx = world.nominalSpeed * world.speedMult * dt;
+  advanceScroll(dx, dt); updatePlayer(dt); updatePursuers(dt);
+  for (const ob of world.obstacles) { ob.x -= dx; if (ob.kind === 'ghost') ob.y = ob.baseY + Math.sin(animT * 2.4 + ob.phase) * 6; }
+  updateFx(dt, dx);
+  if (world.goTimer >= 1.0 && !world.overShown) showGameOver();
+}
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (!lastTime) lastTime = now;
+  let dt = (now - lastTime) / 1000; lastTime = now;
+  dt = clamp(dt, 0, 0.05);      // 分頁切回時避免巨大時間差
+  if (state !== 'paused') animT += dt;
+  switch (state) {
+    case 'start':           updateIdle(dt); break;
+    case 'tutorial': case 'playing': case 'finishApproach': updateRun(dt); break;
+    case 'victorySequence': updateVictorySequence(dt); break;
+    case 'victory':         updateFx(dt, 0); break;
+    case 'gameover':        updateGameOver(dt); break;
+  }
+  render();
+}
+function render() {
+  const m = meters();
+  const inFinal = state === 'victorySequence' || state === 'victory';
+  const nearT = clamp((m - CONFIG.gateVisibleDistance) / (CONFIG.levelDistance - CONFIG.gateVisibleDistance), 0, 1);
+  const seqT = inFinal ? clamp(world.seqT / CONFIG.victorySequenceDuration, 0, 1) : 0;
+  const fogMult = inFinal ? 0.15 * (1 - seqT) : 1 - nearT * 0.8;   // 接近終點迷霧散去
+  const warm = inFinal ? 0.45 + seqT * 0.3 : nearT * 0.4;           // 冷色水墨 → 暖白
+  const d = isRunning() && state !== 'finishApproach' ? dangerRatio() : 0;
+
+  ctx.save();
+  if (world.shake > 0) ctx.translate((Math.random() - 0.5) * world.shake, (Math.random() - 0.5) * world.shake);
+  const paper = ctx.createLinearGradient(0, 0, 0, H);   // 宣紙底色
+  paper.addColorStop(0, '#cfc9b9'); paper.addColorStop(0.45, '#e3ddcb'); paper.addColorStop(1, '#bdb6a3');
+  ctx.fillStyle = paper; ctx.fillRect(-20, -20, W + 40, H + 40);
+  ctx.drawImage(BG.stains, 0, 0);
+  /* 【視差捲動】遠景 → 中景 → 前景 */
+  drawTile(BG.far,   S.far,   GROUND_Y - 250);
+  drawTile(BG.mid,   S.mid,   GROUND_Y - 292);
+  drawTile(BG.fog1,  S.fog1,  GROUND_Y - 235, fogMult);
+  drawTile(BG.trees, S.trees, GROUND_Y - 216);
+  drawFarGate(nearT * (world.gate ? clamp((world.gate.x - W) / 260, 0, 1) : 1));
+  drawFires(1 - nearT * 0.7);
+  drawTile(BG.fog2,  S.fog2,  GROUND_Y - 150, fogMult);
+  drawTile(BG.road,  S.road,  GROUND_Y - 6);
+  drawGate();
+  drawPursuers();
+  for (const ob of world.obstacles) drawObstacle(ob);
+  drawPlayer();
+  drawParticles();
+  drawTexts();
+  drawTile(BG.fore,  S.fore,  GROUND_Y - 30, fogMult);
+  drawAshes();
+  ctx.drawImage(BG.vignette, 0, 0);
+  if (d > 0) {   // 黑白無常逼近：畫面邊緣變暗
+    ctx.globalAlpha = d * (0.55 + (d > 0.66 ? Math.sin(animT * 6) * 0.15 : 0)); ctx.drawImage(BG.danger, 0, 0); ctx.globalAlpha = 1;
+  }
+  if (warm > 0) { ctx.fillStyle = `rgba(255,240,208,${warm})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
+  if (inFinal) { ctx.fillStyle = `rgba(252,248,238,${clamp((world.seqT - 1.6) / 2.6, 0, 1) * 0.9})`; ctx.fillRect(-20, -20, W + 40, H + 40); }   // 紙面泛白
+  ctx.globalAlpha = 0.85; ctx.drawImage(BG.paper, 0, 0); ctx.globalAlpha = 1;   // 【宣紙紙紋】覆蓋
+  drawBanner();
+  ctx.restore();
+}
+
+/* ---------- 音效（Web Audio API 合成，不需外部音檔） ---------- */
+const Sfx = {
+  ctx: null, master: null, muted: false, VOL: CONFIG.sfxVolume,
+  init() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = this.muted ? 0 : this.VOL; this.master.connect(this.ctx.destination); }
+    catch (e) { this.ctx = null; }
+  },
+  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : this.VOL; },
+  tone(f0, f1, dur, type, vol, delay = 0) {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+  },
+  noise(dur, vol, freq, delay = 0) {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime + delay, n = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq;
+    const g = this.ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(this.master); src.start(t); src.stop(t + dur);
+  },
+  jump()    { this.tone(300, 640, 0.13, 'sine', 0.5); },
+  duck()    { this.tone(220, 80, 0.2, 'triangle', 0.45); this.noise(0.12, 0.15, 600); },
+  dodge()   { this.tone(900, 1400, 0.06, 'sine', 0.18); },
+  combo()   { this.tone(660, 990, 0.09, 'sine', 0.2); this.tone(990, 1320, 0.1, 'sine', 0.16, 0.08); },
+  hit()     { this.tone(150, 40, 0.3, 'square', 0.35); this.noise(0.25, 0.4, 700); },
+  drone()   { this.tone(72, 55, 0.5, 'sine', 0.35); this.noise(0.4, 0.1, 200); },
+  near()    { this.tone(440, 880, 0.35, 'sine', 0.25); this.tone(660, 1320, 0.45, 'sine', 0.2, 0.2); },
+  gate()    { this.tone(330, 660, 0.5, 'triangle', 0.25); this.tone(495, 990, 0.6, 'sine', 0.2, 0.25); },
+  victory() { this.tone(196, 392, 0.6, 'sine', 0.3); this.tone(294, 587, 0.7, 'sine', 0.25, 0.25); this.tone(392, 784, 0.9, 'triangle', 0.22, 0.5); this.tone(587, 1175, 1.5, 'sine', 0.2, 0.85); },
+  over()    { this.tone(120, 38, 1.3, 'sawtooth', 0.28); this.noise(1.6, 0.3, 350); this.tone(220, 110, 0.9, 'sine', 0.2, 0.15); },
+};
+
+/* ---------- 初始化 ---------- */
+function init() {
+  fitCanvas(); window.addEventListener('resize', fitCanvas);
+  validatePatternSets();
+  buildBackground(); initAmbient(); loadAssets(); buildHearts(); bindInput();
+  Sfx.setMuted(!!Store.get(KEY_MUTE, false)); updateMuteBtn();
+  resetGame(); setState('start');
+  refreshRecordUI(); updateHUD();
+  requestAnimationFrame(loop);
+}
+init();
+})();
+</script>
+</body>
+</html>
